@@ -183,10 +183,14 @@ unitTest(function urlNormalize(): void {
 unitTest(function urlModifyPathname(): void {
   const url = new URL("http://foo.bar/baz%qat/qux%quux");
   assertEquals(url.pathname, "/baz%qat/qux%quux");
+  // These self-assignments are to invoke the setters.
+  // deno-lint-ignore no-self-assign
   url.pathname = url.pathname;
   assertEquals(url.pathname, "/baz%qat/qux%quux");
+  // deno-lint-ignore no-self-assign
   url.pathname = "baz#qat qux";
   assertEquals(url.pathname, "/baz%23qat%20qux");
+  // deno-lint-ignore no-self-assign
   url.pathname = url.pathname;
   assertEquals(url.pathname, "/baz%23qat%20qux");
 });
