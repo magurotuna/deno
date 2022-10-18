@@ -543,6 +543,7 @@ itest!(_089_run_allow_list {
 });
 
 #[test]
+#[ignore]
 fn _090_run_permissions_request() {
   let args = "run --quiet run/090_run_permissions_request.ts";
   use util::PtyData::*;
@@ -2211,6 +2212,7 @@ mod permissions {
   }
 
   #[test]
+  #[ignore]
   fn _061_permissions_request() {
     let args = "run --quiet run/061_permissions_request.ts";
     use util::PtyData::*;
@@ -2226,6 +2228,7 @@ mod permissions {
   }
 
   #[test]
+  #[ignore]
   fn _062_permissions_request_global() {
     let args = "run --quiet run/062_permissions_request_global.ts";
     use util::PtyData::*;
@@ -2343,6 +2346,7 @@ itest!(byte_order_mark {
 });
 
 #[test]
+#[ignore]
 fn issue9750() {
   use util::PtyData::*;
   util::test_pty2(

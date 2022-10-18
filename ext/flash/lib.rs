@@ -114,6 +114,7 @@ impl CloseNotifier {
 
   fn notify(&mut self) {
     if let Self::Unnotified { waker } = self {
+      eprintln!("RS: CloseNotifier making notification");
       if waker.wake().is_ok() {
         *self = Self::Notified;
       }
@@ -123,7 +124,9 @@ impl CloseNotifier {
 
 impl Drop for CloseNotifier {
   fn drop(&mut self) {
+    eprintln!("RS: CloseNotifier being closed");
     if let Self::Unnotified { waker } = self {
+      eprintln!("RS: CloseNotifier making notification");
       // Ignore error
       _ = waker.wake();
     }
@@ -459,6 +462,7 @@ fn op_flash_close_server(state: Rc<RefCell<OpState>>, server_id: u32) {
   let mut ctx = flash_ctx.servers.remove(&server_id).unwrap();
   ctx.cancel_handle.cancel();
   ctx.close_notifier.notify();
+  eprintln!("RS: server context removing");
 }
 
 #[op]
@@ -925,6 +929,7 @@ fn run_server(
   maybe_key: Option<String>,
   reuseport: bool,
 ) -> Result<(), AnyError> {
+  eprintln!("RS: run_server is starting");
   let domain = if addr.is_ipv4() {
     socket2::Domain::IPV4
   } else {
@@ -940,10 +945,12 @@ fn run_server(
   }
 
   let socket_addr = socket2::SockAddr::from(addr);
+  eprintln!("socket2 created");
   socket.bind(&socket_addr)?;
   socket.listen(128)?;
   socket.set_nonblocking(true)?;
   let std_listener: std::net::TcpListener = socket.into();
+  eprintln!("std_listener craeted");
   let mut listener = TcpListener::from_std(std_listener);
 
   poll
@@ -976,16 +983,23 @@ fn run_server(
   let mut counter = TOKEN_INITIAL_VALUE;
   let mut events = Events::with_capacity(1024);
   'outer: loop {
+    eprintln!(
+      "RS: event loop getting into one iteration. waiting for some events..."
+    );
     match poll.poll(&mut events, None) {
       Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
       Err(e) => panic!("{}", e),
       Ok(()) => (),
     }
+    eprintln!("RS: event detected!");
     'events: for event in &events {
       match event.token() {
         // When a close notification arrives, exit from the event loop
         // so that the resources are properly released.
         token if token == CLOSE_TOKEN => {
+          eprintln!(
+            "RS: finishing the event loop (hence releasing the resources)"
+          );
           break 'outer;
         }
         token if token == LISTENER_TOKEN => loop {

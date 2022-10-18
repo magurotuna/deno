@@ -6,6 +6,7 @@ use test_util::assert_ends_with;
 use test_util::assert_not_contains;
 
 #[test]
+#[ignore]
 fn pty_multiline() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("(\n1 + 2\n)");
@@ -37,6 +38,7 @@ fn pty_multiline() {
 }
 
 #[test]
+#[ignore]
 fn pty_null() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("null");
@@ -48,6 +50,7 @@ fn pty_null() {
 }
 
 #[test]
+#[ignore]
 fn pty_unpaired_braces() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line(")");
@@ -63,6 +66,7 @@ fn pty_unpaired_braces() {
 }
 
 #[test]
+#[ignore]
 fn pty_bad_input() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("'\\u{1f3b5}'[0]");
@@ -74,6 +78,7 @@ fn pty_bad_input() {
 }
 
 #[test]
+#[ignore]
 fn pty_syntax_error_input() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("('\\u')");
@@ -92,6 +97,7 @@ fn pty_syntax_error_input() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_symbol() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("Symbol.it\t");
@@ -103,6 +109,7 @@ fn pty_complete_symbol() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_declarations() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("class MyClass {}");
@@ -118,6 +125,7 @@ fn pty_complete_declarations() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_primitives() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("let func = function test(){}");
@@ -140,6 +148,7 @@ fn pty_complete_primitives() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_expression() {
   util::with_pty(&["repl"], |mut console| {
     console.write_text("Deno.\t\t");
@@ -157,6 +166,7 @@ fn pty_complete_expression() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_imports() {
   util::with_pty(&["repl"], |mut console| {
     // single quotes
@@ -188,6 +198,7 @@ fn pty_complete_imports() {
 }
 
 #[test]
+#[ignore]
 fn pty_complete_imports_no_panic_empty_specifier() {
   // does not panic when tabbing when empty
   util::with_pty(&["repl"], |mut console| {
@@ -197,6 +208,7 @@ fn pty_complete_imports_no_panic_empty_specifier() {
 }
 
 #[test]
+#[ignore]
 fn pty_ignore_symbols() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("Array.Symbol\t");
@@ -212,6 +224,7 @@ fn pty_ignore_symbols() {
 }
 
 #[test]
+#[ignore]
 fn pty_assign_global_this() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("globalThis = 42;");
@@ -223,6 +236,7 @@ fn pty_assign_global_this() {
 }
 
 #[test]
+#[ignore]
 fn pty_emoji() {
   // windows was having issues displaying this
   util::with_pty(&["repl"], |mut console| {
@@ -237,6 +251,7 @@ fn pty_emoji() {
 }
 
 #[test]
+#[ignore]
 fn console_log() {
   let (out, err) = util::run_and_collect_output(
     true,
@@ -250,6 +265,7 @@ fn console_log() {
 }
 
 #[test]
+#[ignore]
 fn object_literal() {
   let (out, err) = util::run_and_collect_output(
     true,
@@ -263,6 +279,7 @@ fn object_literal() {
 }
 
 #[test]
+#[ignore]
 fn block_expression() {
   let (out, err) = util::run_and_collect_output(
     true,
@@ -276,6 +293,7 @@ fn block_expression() {
 }
 
 #[test]
+#[ignore]
 fn await_resolve() {
   let (out, err) = util::run_and_collect_output(
     true,
@@ -289,6 +307,7 @@ fn await_resolve() {
 }
 
 #[test]
+#[ignore]
 fn await_timeout() {
   let (out, err) = util::run_and_collect_output(
     true,
@@ -799,6 +818,7 @@ fn eval_file_flag_multiple_files() {
 }
 
 #[test]
+#[ignore]
 fn pty_clear_function() {
   util::with_pty(&["repl"], |mut console| {
     console.write_line("console.log('hello');");
@@ -824,6 +844,7 @@ fn pty_clear_function() {
 }
 
 #[test]
+#[ignore]
 fn pty_tab_handler() {
   // If the last character is **not** whitespace, we show the completions
   util::with_pty(&["repl"], |mut console| {

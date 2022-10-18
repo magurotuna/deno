@@ -1185,6 +1185,8 @@ fn run_watch_flash() {
   )
   .unwrap();
 
+  eprintln!("{}", line!());
+
   let mut child = util::deno_cmd()
     .current_dir(t.path())
     .arg("run")
@@ -1193,6 +1195,7 @@ fn run_watch_flash() {
     .arg("--allow-net")
     .arg("-L")
     .arg("debug")
+    .arg("--no-clear-screen")
     .arg(&file_to_watch)
     .env("NO_COLOR", "1")
     .stdout(std::process::Stdio::piped())
@@ -1201,11 +1204,14 @@ fn run_watch_flash() {
     .unwrap();
   let (mut stdout_lines, mut stderr_lines) = child_lines(&mut child);
 
+  eprintln!("{}", line!());
   wait_contains("Starting flash server...", &mut stdout_lines);
+  eprintln!("{}", line!());
   wait_for(
     |m| m.contains("Watching paths") && m.contains(filename),
     &mut stderr_lines,
   );
+  eprintln!("{}", line!());
 
   write(
     &file_to_watch,
@@ -1221,10 +1227,15 @@ fn run_watch_flash() {
     "#,
   )
   .unwrap();
+  eprintln!("{}", line!());
 
+  eprintln!("{}", line!());
   wait_contains("File change detected! Restarting!", &mut stderr_lines);
+  eprintln!("{}", line!());
   wait_contains("Restarting flash server...", &mut stdout_lines);
+  eprintln!("{}", line!());
   wait_contains("Second server is listening", &mut stderr_lines);
+  eprintln!("{}", line!());
 
   check_alive_then_kill(child);
 }
