@@ -63,12 +63,14 @@ pub use reqwest;
 
 pub use fs_fetch_handler::FsFetchHandler;
 
+pub type RequestBuilderHook = Rc<dyn Fn(RequestBuilder) -> RequestBuilder>;
+
 #[derive(Clone)]
 pub struct Options {
   pub user_agent: String,
   pub root_cert_store: Option<RootCertStore>,
   pub proxy: Option<Proxy>,
-  pub request_builder_hook: Option<fn(RequestBuilder) -> RequestBuilder>,
+  pub request_builder_hook: Option<RequestBuilderHook>,
   pub unsafely_ignore_certificate_errors: Option<Vec<String>>,
   pub client_cert_chain_and_key: Option<(String, String)>,
   pub file_fetch_handler: Rc<dyn FetchHandler>,
@@ -311,7 +313,8 @@ where
       request = request.headers(header_map);
 
       let options = state.borrow::<Options>();
-      if let Some(request_builder_hook) = options.request_builder_hook {
+      if let Some(request_builder_hook) = options.request_builder_hook.as_ref()
+      {
         request = request_builder_hook(request);
       }
 
