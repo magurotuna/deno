@@ -2,7 +2,6 @@
 
 mod fs_fetch_handler;
 mod proxy;
-mod tcp_conn_info;
 #[cfg(test)]
 mod tests;
 
@@ -556,7 +555,6 @@ pub async fn op_fetch_send(
   let res = match request.future.await {
     Ok(Ok(res)) => res,
     Ok(Err(err)) => {
-      dbg!(&err);
       // We're going to try and rescue the error cause from a stream and return it from this fetch.
       // If any error in the chain is a hyper body error, return that as a special result we can use to
       // reconstruct an error chain (eg: `new TypeError(..., { cause: new Error(...) })`).
@@ -564,7 +562,6 @@ pub async fn op_fetch_send(
       let mut err_ref: &dyn std::error::Error = err.as_ref();
       while let Some(err) = std::error::Error::source(err_ref) {
         if let Some(err) = err.downcast_ref::<hyper::Error>() {
-          dbg!(err);
           if let Some(err) = std::error::Error::source(err) {
             return Ok(FetchResponse {
               error: Some(err.to_string()),
@@ -592,7 +589,6 @@ pub async fn op_fetch_send(
     .extensions()
     .get::<hyper_util::client::legacy::connect::HttpInfo>()
     .map(|info| info.remote_addr());
-  dbg!(&remote_addr);
   let (remote_addr_ip, remote_addr_port) = if let Some(addr) = remote_addr {
     (Some(addr.ip().to_string()), Some(addr.port()))
   } else {
@@ -1027,14 +1023,13 @@ pub fn create_http_client(
     proxies.prepend(intercept);
   }
   let proxies = Arc::new(proxies);
-  let proxy_connector = proxy::ProxyConnector {
+  let connector = proxy::ProxyConnector {
     http: http_connector,
     proxies: proxies.clone(),
     tls: tls_config,
     tls_proxy: proxy_tls_config,
     user_agent: Some(user_agent.clone()),
   };
-  let connector = tcp_conn_info::TcpConnInfoConnector::new(proxy_connector);
 
   if let Some(pool_max_idle_per_host) = options.pool_max_idle_per_host {
     builder.pool_max_idle_per_host(pool_max_idle_per_host);
@@ -1083,12 +1078,19 @@ pub struct Client {
   user_agent: HeaderValue,
 }
 
-type Connector =
-  tcp_conn_info::TcpConnInfoConnector<proxy::ProxyConnector<HttpConnector>>;
+type Connector = proxy::ProxyConnector<HttpConnector>;
 
 // clippy is wrong here
 #[allow(clippy::declare_interior_mutable_const)]
 const STAR_STAR: HeaderValue = HeaderValue::from_static("*/*");
+
+fn get_http_info_from_error(
+  e: &hyper_util::client::legacy::Error,
+) -> Option<HttpInfo> {
+  let mut exts = Extensions::new();
+  e.connect_info()?.get_extras(&mut exts);
+  exts.remove::<HttpInfo>()
+}
 
 impl Client {
   pub async fn send(
@@ -1106,7 +1108,17 @@ impl Client {
       req.headers_mut().insert(PROXY_AUTHORIZATION, auth.clone());
     }
 
-    let resp = self.inner.oneshot(req).await?;
+    let resp =
+      self.inner.oneshot(req).await.map_err(
+        |e| match get_http_info_from_error(&e) {
+          Some(http_info) => anyhow!(
+            "{e}: src={}, dst={}",
+            http_info.local_addr(),
+            http_info.remote_addr()
+          ),
+          None => anyhow!("{e}"),
+        },
+      )?;
     Ok(resp.map(|b| b.map_err(|e| anyhow!(e)).boxed()))
   }
 }

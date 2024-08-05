@@ -3559,8 +3559,7 @@ dependencies = [
 [[package]]
 name = "hyper-util"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ab92f4f49ee4fb4f997c784b7a2e0fa70050211e0b6a287f898c3c9785ca956"
+source = "git+https://github.com/hyperium/hyper-util.git?rev=7afb1ed#7afb1ed5337c0689d7341e09d31578f1fcffc8af"
 dependencies = [
  "bytes",
  "futures-channel",

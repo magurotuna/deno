@@ -217,6 +217,10 @@ winapi = "=0.3.9"
 windows-sys = { version = "0.52.0", features = ["Win32_Foundation", "Win32_Media", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_WindowsProgramming", "Wdk", "Wdk_System", "Wdk_System_SystemInformation", "Win32_System_Pipes", "Wdk_Storage_FileSystem", "Win32_System_Registry"] }
 winres = "=0.1.12"
 
+[patch.crates-io]
+# In order to use https://github.com/hyperium/hyper-util/pull/135
+hyper-util = { git = "https://github.com/hyperium/hyper-util.git", rev = "7afb1ed" }
+
 # NB: the `bench` and `release` profiles must remain EXACTLY the same.
 [profile.release]
 codegen-units = 1
