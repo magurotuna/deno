@@ -196,23 +196,10 @@ class InnerBody {
    * @returns {InnerBody}
    */
   clone() {
-    let second;
-    if (
-      !ObjectPrototypeIsPrototypeOf(
-        ReadableStreamPrototype,
-        this.streamOrStatic,
-      ) && !this.streamOrStatic.consumed
-    ) {
-      second = new InnerBody({
-        body: this.streamOrStatic.body,
-        consumed: false,
-      });
-    } else {
-      const { 0: out1, 1: out2 } = readableStreamTee(this.stream, true);
-      this.streamOrStatic = out1;
-      second = new InnerBody(out2);
-    }
-    second.source = this.source;
+    const { 0: out1, 1: out2 } = readableStreamTee(this.stream, true);
+    this.streamOrStatic = out1;
+    const second = new InnerBody(out2);
+    second.source = core.deserialize(core.serialize(this.source));
     second.length = this.length;
     return second;
   }
