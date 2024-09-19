@@ -1,0 +1,15 @@
+{
+  "tempDir": false,
+  "steps": [
+    {
+      "args": "test --doc --coverage --reload main.ts markdown.md",
+      "exitCode": 0,
+      "output": "test.out"
+    },
+    {
+      "args": "coverage coverage",
+      "exitCode": 0,
+      "output": "coverage.out"
+    }
+  ]
+}

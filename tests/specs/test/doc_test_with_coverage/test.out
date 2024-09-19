@@ -1,0 +1,11 @@
+Check [WILDCARD]/main.ts
+Check [WILDCARD]/main.ts$2-5.ts
+Check [WILDCARD]/markdown.md$5-9.js
+running 0 tests from ./main.ts
+running 1 test from ./main.ts$2-5.ts
+[WILDCARD]/main.ts$2-5.ts ... ok ([WILDCARD]ms)
+running 1 test from ./markdown.md$5-9.js
+[WILDCARD]/markdown.md$5-9.js ... ok ([WILDCARD]ms)
+
+ok | 2 passed | 0 failed ([WILDCARD]ms)
+
