@@ -1,5 +1,5 @@
 {
-  "tempDir": false,
+  "tempDir": true,
   "steps": [
     {
       "args": "test --doc --coverage --reload main.ts markdown.md",
