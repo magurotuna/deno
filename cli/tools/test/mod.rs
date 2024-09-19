@@ -606,7 +606,7 @@ fn get_test_reporter(options: &TestSpecifiersOptions) -> Box<dyn TestReporter> {
 
 async fn configure_main_worker(
   worker_factory: Arc<CliMainWorkerFactory>,
-  specifier: &Url,
+  specifier: &TestSpecifier,
   permissions_container: PermissionsContainer,
   worker_sender: TestEventWorkerSender,
   options: &TestSpecifierOptions,
@@ -614,7 +614,7 @@ async fn configure_main_worker(
   let mut worker = worker_factory
     .create_custom_worker(
       WorkerExecutionMode::Test,
-      specifier.clone(),
+      specifier.specifier.clone(),
       permissions_container,
       vec![ops::testing::deno_test::init_ops(worker_sender.sender)],
       Stdio {
@@ -624,7 +624,11 @@ async fn configure_main_worker(
       },
     )
     .await?;
-  let coverage_collector = worker.maybe_setup_coverage_collector().await?;
+  let coverage_collector = if specifier.is_pseudo {
+    None
+  } else {
+    worker.maybe_setup_coverage_collector().await?
+  };
   if options.trace_leaks {
     worker.execute_script_static(
       located_script_name!(),
@@ -641,7 +645,7 @@ async fn configure_main_worker(
         send_test_event(
           &worker.js_runtime.op_state(),
           TestEvent::UncaughtError(
-            specifier.to_string(),
+            specifier.specifier.to_string(),
             Box::new(error.downcast::<JsError>().unwrap()),
           ),
         )?;
@@ -659,7 +663,7 @@ async fn configure_main_worker(
 pub async fn test_specifier(
   worker_factory: Arc<CliMainWorkerFactory>,
   permissions_container: PermissionsContainer,
-  specifier: ModuleSpecifier,
+  specifier: TestSpecifier,
   worker_sender: TestEventWorkerSender,
   fail_fast_tracker: FailFastTracker,
   options: TestSpecifierOptions,
@@ -679,7 +683,7 @@ pub async fn test_specifier(
   match test_specifier_inner(
     &mut worker,
     coverage_collector,
-    specifier.clone(),
+    specifier.specifier.clone(),
     fail_fast_tracker,
     options,
   )
@@ -692,7 +696,7 @@ pub async fn test_specifier(
         send_test_event(
           &worker.js_runtime.op_state(),
           TestEvent::UncaughtError(
-            specifier.to_string(),
+            specifier.specifier.to_string(),
             Box::new(error.downcast::<JsError>().unwrap()),
           ),
         )?;
@@ -1187,12 +1191,20 @@ async fn wait_for_activity_to_stabilize(
 
 static HAS_TEST_RUN_SIGINT_HANDLER: AtomicBool = AtomicBool::new(false);
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TestSpecifier {
+  pub specifier: ModuleSpecifier,
+  /// Whether the module that this specifier points to is a "pseudo" test file
+  /// (i.e. the file extracted from JSDoc or markdown).
+  pub is_pseudo: bool,
+}
+
 /// Test a collection of specifiers with test modes concurrently.
 async fn test_specifiers(
   worker_factory: Arc<CliMainWorkerFactory>,
   permissions: &Permissions,
   permission_desc_parser: &Arc<RuntimePermissionDescriptorParser>,
-  specifiers: Vec<ModuleSpecifier>,
+  specifiers: Vec<TestSpecifier>,
   options: TestSpecifiersOptions,
 ) -> Result<(), AnyError> {
   let specifiers = if let Some(seed) = options.specifier.shuffle {
@@ -1584,7 +1596,10 @@ pub async fn run_tests(
   // Typecheck
   main_graph_container
     .check_specifiers(
-      &specifiers_for_typecheck_and_test,
+      &specifiers_for_typecheck_and_test
+        .iter()
+        .map(|s| s.specifier.clone())
+        .collect::<Vec<_>>(),
       cli_options.ext_flag().as_ref(),
     )
     .await?;
@@ -1761,7 +1776,10 @@ pub async fn run_tests_with_watch(
         // Typecheck
         main_graph_container
           .check_specifiers(
-            &specifiers_for_typecheck_and_test,
+            &specifiers_for_typecheck_and_test
+              .iter()
+              .map(|s| s.specifier.clone())
+              .collect::<Vec<_>>(),
             cli_options.ext_flag().as_ref(),
           )
           .await?;
@@ -1834,13 +1852,21 @@ async fn get_doc_tests(
 /// Get a list of specifiers that we need to perform typecheck and run tests on.
 /// The result includes "pseudo specifiers" for doc tests.
 fn get_target_specifiers(
-  specifiers_with_mode: Vec<(Url, TestMode)>,
+  specifiers_with_mode: Vec<(ModuleSpecifier, TestMode)>,
   doc_tests: &[File],
-) -> Vec<Url> {
+) -> Vec<TestSpecifier> {
   specifiers_with_mode
     .into_iter()
-    .filter_map(|(s, mode)| mode.needs_test_run().then_some(s))
-    .chain(doc_tests.iter().map(|d| d.specifier.clone()))
+    .filter_map(|(s, mode)| {
+      mode.needs_test_run().then_some(TestSpecifier {
+        specifier: s,
+        is_pseudo: false,
+      })
+    })
+    .chain(doc_tests.iter().map(|d| TestSpecifier {
+      specifier: d.specifier.clone(),
+      is_pseudo: true,
+    }))
     .collect()
 }
 

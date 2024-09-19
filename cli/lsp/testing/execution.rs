@@ -306,7 +306,10 @@ impl TestRun {
           create_and_run_current_thread(test::test_specifier(
             worker_factory,
             permissions_container,
-            specifier,
+            test::TestSpecifier {
+              specifier,
+              is_pseudo: false,
+            },
             worker_sender,
             fail_fast_tracker,
             test::TestSpecifierOptions {
