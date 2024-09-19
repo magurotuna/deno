@@ -2,7 +2,7 @@
   "tempDir": true,
   "steps": [
     {
-      "args": "test --doc --coverage --reload main.ts markdown.md",
+      "args": "test --doc --coverage main.ts markdown.md",
       "exitCode": 0,
       "output": "test.out"
     },
