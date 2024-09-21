@@ -20,6 +20,7 @@ use deno_core::anyhow::Error;
 use deno_core::error::type_error;
 use deno_core::error::AnyError;
 use deno_core::futures::stream::Peekable;
+use deno_core::futures::stream::TryStreamExt;
 use deno_core::futures::Future;
 use deno_core::futures::FutureExt;
 use deno_core::futures::Stream;
@@ -49,10 +50,12 @@ use deno_tls::TlsKeysHolder;
 
 use bytes::Bytes;
 use data_url::DataUrl;
+use http::header;
 use http::header::HeaderName;
 use http::header::HeaderValue;
 use http::header::ACCEPT;
 use http::header::ACCEPT_ENCODING;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::HOST;
 use http::header::PROXY_AUTHORIZATION;
@@ -62,6 +65,7 @@ use http::Method;
 use http::Uri;
 use http_body_util::BodyExt;
 use hyper::body::Frame;
+use hyper::body::Incoming;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::rt::TokioExecutor;
@@ -1079,35 +1083,71 @@ impl Client {
       req.headers_mut().insert(PROXY_AUTHORIZATION, auth.clone());
     }
 
-    let resp = self.inner.oneshot(req).await?;
-    let is_br = resp
-      .headers()
-      .get(http::header::CONTENT_ENCODING)
-      .map(|v| v == "br")
-      .unwrap_or(false);
-    let mapped = resp.map(|b| {
-      use deno_core::futures::stream::StreamExt as _;
-      use deno_core::futures::stream::TryStreamExt as _;
+    if let header::Entry::Vacant(entry) =
+      req.headers_mut().entry(ACCEPT_ENCODING)
+    {
+      entry.insert(HeaderValue::from_static("gzip,br"));
+    }
 
-      if is_br {
-        let stream = b.into_data_stream();
-        let reader = tokio_util::io::StreamReader::new(
-          stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-        );
-        let decoder =
-          async_compression::tokio::bufread::BrotliDecoder::new(reader);
-        let stream = tokio_util::io::ReaderStream::new(decoder);
-        let framed_stream =
-          stream.map(|chunk| chunk.map(|c| hyper::body::Frame::data(c)));
-        let stream_body = http_body_util::StreamBody::new(framed_stream);
-        let body = http_body_util::combinators::BoxBody::new(stream_body);
-        body.map_err(|e| anyhow!(e)).boxed()
-      } else {
-        b.map_err(|e| anyhow!(e)).boxed()
-      }
-    });
-    Ok(mapped)
+    let resp = self.inner.oneshot(req).await?;
+
+    Ok(decompress(resp))
   }
+}
+
+/// Decompress the response body if it is compressed using gzip or brotli.
+fn decompress(resp: http::Response<Incoming>) -> http::Response<ResBody> {
+  let (mut parts, body) = resp.into_parts();
+
+  let body = match parts.headers.entry(CONTENT_ENCODING) {
+    header::Entry::Vacant(_) => body.map_err(|e| anyhow!(e)).boxed(),
+    header::Entry::Occupied(entry) => {
+      let (body, processed) = match entry.get().as_bytes() {
+        b"gzip" => {
+          let stream = body.into_data_stream();
+          let reader = tokio_util::io::StreamReader::new(
+            stream
+              .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
+          );
+          let decoder =
+            async_compression::tokio::bufread::GzipDecoder::new(reader);
+          let decoded_stream = tokio_util::io::ReaderStream::new(decoder);
+          let framed_stream = decoded_stream
+            .map(|chunk| chunk.map(|c| hyper::body::Frame::data(c)));
+          let stream_body = http_body_util::StreamBody::new(framed_stream);
+          let body = BodyExt::map_err(stream_body, |e| anyhow!(e)).boxed();
+
+          (body, true)
+        }
+        b"br" => {
+          let stream = body.into_data_stream();
+          let reader = tokio_util::io::StreamReader::new(
+            stream
+              .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
+          );
+          let decoder =
+            async_compression::tokio::bufread::BrotliDecoder::new(reader);
+          let decoded_stream = tokio_util::io::ReaderStream::new(decoder);
+          let framed_stream = decoded_stream
+            .map(|chunk| chunk.map(|c| hyper::body::Frame::data(c)));
+          let stream_body = http_body_util::StreamBody::new(framed_stream);
+          let body = BodyExt::map_err(stream_body, |e| anyhow!(e)).boxed();
+
+          (body, true)
+        }
+        _ => (body.map_err(|e| anyhow!(e)).boxed(), false),
+      };
+
+      if processed {
+        entry.remove();
+        parts.headers.remove(CONTENT_LENGTH);
+      }
+
+      body
+    }
+  };
+
+  http::Response::from_parts(parts, body)
 }
 
 pub type ReqBody = http_body_util::combinators::BoxBody<Bytes, Error>;
