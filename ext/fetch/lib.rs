@@ -987,7 +987,6 @@ pub fn create_http_client(
 
   let mut http_connector = HttpConnector::new();
   http_connector.enforce_http(false);
-  http_connector.set_nodelay(true);
   let connector = HttpsConnector::from((http_connector, tls_config.clone()));
 
   let user_agent = user_agent
