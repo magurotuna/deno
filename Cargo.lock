@@ -3463,9 +3463,8 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee4be2c948921a1a5320b629c4193916ed787a7f7f293fd3f7f5a6c9de74155"
+version = "0.27.3"
+source = "git+https://github.com/rustls/hyper-rustls.git?rev=4d5fe9a608a85b17acfe9fdddeca7509bb349320#4d5fe9a608a85b17acfe9fdddeca7509bb349320"
 dependencies = [
  "futures-util",
  "http 1.1.0",
@@ -7770,7 +7769,7 @@ dependencies = [
  "log",
  "naga",
  "once_cell",
- "parking_lot 0.12.3",
+ "parking_lot 0.11.2",
  "profiling",
  "raw-window-handle",
  "ron",
@@ -7812,7 +7811,7 @@ dependencies = [
  "ndk-sys",
  "objc",
  "once_cell",
- "parking_lot 0.12.3",
+ "parking_lot 0.11.2",
  "profiling",
  "range-alloc",
  "raw-window-handle",

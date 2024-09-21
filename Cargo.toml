@@ -385,3 +385,6 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.zstd-sys]
 opt-level = 3
+
+[patch.crates-io]
+hyper-rustls = { git = "https://github.com/rustls/hyper-rustls.git", rev = "4d5fe9a608a85b17acfe9fdddeca7509bb349320" }
