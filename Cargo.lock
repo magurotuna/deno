@@ -1465,6 +1465,7 @@ dependencies = [
 name = "deno_fetch"
 version = "0.186.0"
 dependencies = [
+ "async-compression",
  "base64 0.21.7",
  "bytes",
  "data-url",

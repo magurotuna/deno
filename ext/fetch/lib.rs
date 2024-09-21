@@ -72,7 +72,6 @@ use serde::Serialize;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tower::ServiceExt;
-use tower_http::decompression::Decompression;
 
 // Re-export data_url
 pub use data_url;
@@ -1034,10 +1033,9 @@ pub fn create_http_client(
   }
 
   let pooled_client = builder.build(connector);
-  let decompress = Decompression::new(pooled_client).gzip(true).br(true);
 
   Ok(Client {
-    inner: decompress,
+    inner: pooled_client,
     proxies,
     user_agent,
   })
@@ -1053,7 +1051,7 @@ pub fn op_utf8_to_byte_string(
 
 #[derive(Clone, Debug)]
 pub struct Client {
-  inner: Decompression<hyper_util::client::legacy::Client<Connector, ReqBody>>,
+  inner: hyper_util::client::legacy::Client<Connector, ReqBody>,
   // Used to check whether to include a proxy-authorization header
   proxies: Arc<proxy::Proxies>,
   user_agent: HeaderValue,
@@ -1082,7 +1080,33 @@ impl Client {
     }
 
     let resp = self.inner.oneshot(req).await?;
-    Ok(resp.map(|b| b.map_err(|e| anyhow!(e)).boxed()))
+    let is_br = resp
+      .headers()
+      .get(http::header::CONTENT_ENCODING)
+      .map(|v| v == "br")
+      .unwrap_or(false);
+    let mapped = resp.map(|b| {
+      use deno_core::futures::stream::StreamExt as _;
+      use deno_core::futures::stream::TryStreamExt as _;
+
+      if is_br {
+        let stream = b.into_data_stream();
+        let reader = tokio_util::io::StreamReader::new(
+          stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
+        );
+        let decoder =
+          async_compression::tokio::bufread::BrotliDecoder::new(reader);
+        let stream = tokio_util::io::ReaderStream::new(decoder);
+        let framed_stream =
+          stream.map(|chunk| chunk.map(|c| hyper::body::Frame::data(c)));
+        let stream_body = http_body_util::StreamBody::new(framed_stream);
+        let body = http_body_util::combinators::BoxBody::new(stream_body);
+        body.map_err(|e| anyhow!(e)).boxed()
+      } else {
+        b.map_err(|e| anyhow!(e)).boxed()
+      }
+    });
+    Ok(mapped)
   }
 }
 
