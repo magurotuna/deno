@@ -1025,6 +1025,14 @@ pub fn create_http_client(
   builder.timer(TokioTimer::new());
   builder.pool_timer(TokioTimer::new());
 
+  // ================ Patch ================
+  // Primary patch to make sure that hyper-based fetch has the same behavior as
+  // reqwest-based one.
+  // We probably will want to expose this as an option in the future.
+  const MAX_HEADER_LIST_SIZE: u32 = 16 * 1024 * 1024;
+  builder.http2_max_header_list_size(MAX_HEADER_LIST_SIZE);
+  // =======================================
+
   let mut proxies = proxy::from_env();
   if let Some(proxy) = options.proxy {
     let mut intercept = proxy::Intercept::all(&proxy.url)
