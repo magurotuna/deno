@@ -73,6 +73,7 @@ async fn run_test_client(
       pool_idle_timeout: None,
       http1: true,
       http2: true,
+      client_builder_hook: None,
     },
   )
   .unwrap();
