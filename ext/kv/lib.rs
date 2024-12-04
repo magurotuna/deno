@@ -841,10 +841,13 @@ where
     }
   }
 
-  if total_payload_size > MAX_TOTAL_MUTATION_SIZE_BYTES {
+  // TODO: remove this
+  let temp_total_mutation_size_limit: usize = 819200 * 2;
+
+  if total_payload_size > temp_total_mutation_size_limit {
     return Err(type_error(format!(
       "total mutation size too large (max {} bytes)",
-      MAX_TOTAL_MUTATION_SIZE_BYTES
+      temp_total_mutation_size_limit
     )));
   }
 
