@@ -140,6 +140,7 @@ pub fn op_timer_schedule(scope: &mut v8::PinScope, delay_ms: f64) {
     context_state
       .user_timer
       .schedule(std::time::Duration::from_millis(delay_ms as u64));
+    context_state.timer_armed_externally.set(true);
   }
 }
 

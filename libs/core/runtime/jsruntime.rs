@@ -2396,6 +2396,7 @@ impl JsRuntime {
     // draining to preserve the nextTick-before-then invariant.
     let timer_ready = context_state.user_timer.poll_ready(cx).is_ready();
     did_work |= timer_ready;
+    context_state.timer_armed_externally.set(false);
     dispatched_ops |=
       Self::dispatch_event_loop_tick(cx, scope, context_state, timer_ready)?;
     // After the JS call, read timer_expiry shared buffer and schedule.
@@ -3303,7 +3304,12 @@ impl JsRuntime {
   ///   - positive: next expiry time (has refed timers)
   ///   - negative: next expiry time negated (only unrefed timers)
   ///   - 0.0: no timers remain
-  fn process_timer_expiry(context_state: &ContextState) {
+  pub(crate) fn process_timer_expiry(context_state: &ContextState) {
+    if context_state.timer_armed_externally.take() {
+      // JS armed the native timer after processTimers wrote the buffer;
+      // the buffered value is stale. Keep the newer arm.
+      return;
+    }
     let expiry_ms = context_state.timer_expiry[0];
 
     if expiry_ms != 0.0 {

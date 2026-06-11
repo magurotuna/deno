@@ -1882,3 +1882,85 @@ async fn test_nexttick_before_queue_microtask() {
     .unwrap();
   runtime.run_event_loop(Default::default()).await.unwrap();
 }
+
+
+#[tokio::test]
+async fn test_timer_expiry_stale_buffer_does_not_clobber_armed_timer() {
+  // Regression test for a timer-expiry hand-off race in the event loop.
+  //
+  // The JS timer system reports the next deadline to Rust by writing it into
+  // the shared `timer_expiry` buffer at the start of `__eventLoopTick`; Rust
+  // reads it back in `process_timer_expiry` AFTER the whole tick runs.
+  //
+  // The bug: within a single tick, `processTimers` can drain every timer and
+  // write 0 ("no timers remain") to the buffer; then JS arms a NEW native timer
+  // (`op_timer_schedule` with a positive delay) later in the same tick -- e.g.
+  // a node socket-timeout refresh during async-op resolution. When
+  // `process_timer_expiry` then reads the stale 0, it clears the freshly-armed
+  // deadline. The JS side still believes a deadline exists (`nextExpiry` points
+  // at it) so it never re-arms, and the refed timer keeps the loop alive with
+  // no wakeup -> the event loop never makes progress (in a full runtime, with
+  // other refed work also pending, it parks forever).
+  //
+  // This reproduces the exact Rust-observable state at the end of such a tick:
+  // a refed timer is armed (native deadline live, `timer_armed_externally` set),
+  // the shared buffer holds the stale 0 that `processTimers` wrote earlier in
+  // the tick, and `process_timer_expiry` runs. Without the fix it clears the
+  // deadline and the timer callback is silently dropped; with the fix the arm
+  // is preserved and the timer fires.
+
+  static FIRED: AtomicBool = AtomicBool::new(false);
+
+  #[op2(fast)]
+  fn op_mark_fired() {
+    FIRED.store(true, Ordering::SeqCst);
+  }
+
+  FIRED.store(false, Ordering::SeqCst);
+
+  deno_core::extension!(timer_race_ext, ops = [op_mark_fired]);
+  let mut runtime = JsRuntime::new(RuntimeOptions {
+    extensions: vec![timer_race_ext::init()],
+    ..Default::default()
+  });
+
+  // Arm a real, refed timer. `createTimer` runs `op_timer_schedule(40)`
+  // synchronously: the native deadline becomes live, the timer is refed (which
+  // keeps the event loop alive), and `timer_armed_externally` is set.
+  runtime
+    .execute_script(
+      "",
+      ascii_str!(
+        "Deno.core.createTimer(() => { Deno.core.ops.op_mark_fired(); }, 40, [], false, true, false);"
+      ),
+    )
+    .unwrap();
+
+  // Reproduce the same-tick stale read: `processTimers` wrote 0 (all drained)
+  // into the shared buffer earlier in this tick, then the timer above was
+  // (re)armed. Now run the post-tick expiry read.
+  {
+    let state = runtime.main_realm().0.state();
+    // Mirror V8's aliased write into the shared Float64Array backing store.
+    let ptr = state.timer_expiry.as_ptr() as *mut f64;
+    unsafe { *ptr = 0.0 };
+    JsRuntime::process_timer_expiry(&state);
+  }
+
+  // The 40ms timer must still fire so the loop can complete. Without the fix
+  // its native deadline was cleared, so the callback never runs. The timeout is
+  // a safety net so a future regression that reintroduces a true hang fails
+  // loudly instead of blocking the test suite.
+  let res = tokio::time::timeout(
+    Duration::from_secs(5),
+    runtime.run_event_loop(PollEventLoopOptions::default()),
+  )
+  .await;
+
+  assert!(res.is_ok(), "event loop did not terminate within 5s");
+  res.unwrap().unwrap();
+  assert!(
+    FIRED.load(Ordering::SeqCst),
+    "timer callback never ran: stale timer_expiry=0 clobbered the freshly-armed deadline"
+  );
+}

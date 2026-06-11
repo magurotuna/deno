@@ -116,6 +116,11 @@ pub struct ContextState {
   /// Rust reads this after __eventLoopTick returns to schedule the
   /// next timer wake-up, avoiding a return-value protocol.
   pub(crate) timer_expiry: Box<[f64; 1]>,
+  /// Set when JS arms the native timer directly (op_timer_schedule with a
+  /// positive delay) during __eventLoopTick, after processTimers wrote
+  /// timer_expiry. When set, the buffered expiry is stale and must not be
+  /// applied by process_timer_expiry (doing so would clobber the new arm).
+  pub(crate) timer_armed_externally: std::cell::Cell<bool>,
   /// Active JS-managed timers tracked for the leak sanitizer.
   /// Maps timer ID → (is_repeat, is_system). System timers (e.g.
   /// AbortSignal.timeout) are excluded from sanitizer stats.
@@ -185,6 +190,7 @@ impl ContextState {
       user_timer: Default::default(),
       timer_info: Box::new([0i32; 1]),
       timer_expiry: Box::new([0f64; 1]),
+      timer_armed_externally: std::cell::Cell::new(false),
       active_timers: Default::default(),
       unrefed_ops,
       external_ops_tracker,
